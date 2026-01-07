@@ -35,8 +35,10 @@ socket.on 'connect', ->
 
 socket.on 'game-code', (code) -> 
   console.log "code #{code}"
+  gameUrl = "/game?code=#{code}"
   document.querySelector('#game-code').innerText = code
   document.querySelector("#game-qr-code").src = "/game-qr?code=#{code}"
+  document.querySelector("#game-link").href = gameUrl
 
 # Receive game state updates from server
 socket.on 'game-state', (state) ->

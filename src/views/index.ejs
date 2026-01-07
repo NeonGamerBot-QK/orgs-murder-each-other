@@ -36,6 +36,13 @@
 
         .game-code-container {
             text-align: center;
+            text-decoration: none;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .game-code-container:hover {
+            transform: scale(1.05);
         }
 
         .game-code-label {
@@ -79,10 +86,10 @@
 <body>
     <header class="header">
         <img src="" alt="Join QR Code" id="game-qr-code">
-        <div class="game-code-container">
+        <a class="game-code-container" id="game-link" href="#" target="_blank">
             <div class="game-code-label">Game Code</div>
             <div class="game-code" id="game-code">----</div>
-        </div>
+        </a>
     </header>
 
     <div class="canvas-container">
