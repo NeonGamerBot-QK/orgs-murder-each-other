@@ -2,10 +2,21 @@
 (function() {
 
   /*
+    Creates a slash animation between attacker and target.
+    @param {number} ax - Attacker X position
+    @param {number} ay - Attacker Y position
+    @param {number} tx - Target X position
+    @param {number} ty - Target Y position
+  */
+  /*
     Renders all players on the canvas.
     Alive players shown with sprite, dead players shown as faded.
   */
-  var canvas, ctx, playerImage, players, render, socket;
+  /*
+    Renders slash animation with energy arc and spark particles.
+    @param {Object} slash - The slash animation object
+  */
+  var canvas, createSlashAnimation, ctx, playerImage, players, render, renderSlash, slashAnimations, socket;
 
   socket = io();
 
@@ -26,6 +37,20 @@
   // Game state from server
   players = [];
 
+  // Active slash animations
+  slashAnimations = [];
+
+  createSlashAnimation = function(ax, ay, tx, ty) {
+    return slashAnimations.push({
+      ax,
+      ay,
+      tx,
+      ty,
+      progress: 0,
+      particles: []
+    });
+  };
+
   socket.on('connect', function() {
     return console.log('Connected to server');
   });
@@ -41,13 +66,101 @@
     return players = state.players;
   });
 
+  // Handle kill animation event
+  socket.on('kill-animation', function(data) {
+    return createSlashAnimation(data.attackerX, data.attackerY, data.targetX, data.targetY);
+  });
+
+  renderSlash = function(slash) {
+    var angle, ax, ay, dist, dx, dy, flashAlpha, i, j, k, len, pAngle, particle, particles, progress, slashProgress, speed, tx, ty;
+    ({ax, ay, tx, ty, progress, particles} = slash);
+    
+    // Calculate slash line properties
+    dx = tx - ax;
+    dy = ty - ay;
+    dist = Math.sqrt(dx * dx + dy * dy);
+    angle = Math.atan2(dy, dx);
+    
+    // Draw main slash arc (energy slice effect)
+    if (progress < 0.4) {
+      slashProgress = progress / 0.4;
+      ctx.save();
+      ctx.translate(tx, ty);
+      ctx.rotate(angle + Math.PI);
+      
+      // Outer glow
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 - slashProgress * 0.8})`;
+      ctx.lineWidth = 8 - slashProgress * 6;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(0, 0, 40, -0.8 + slashProgress, 0.8 - slashProgress);
+      ctx.stroke();
+      
+      // Inner bright slash
+      ctx.strokeStyle = `rgba(230, 230, 250, ${1 - slashProgress})`;
+      ctx.lineWidth = 4 - slashProgress * 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, 40, -0.6 + slashProgress * 0.5, 0.6 - slashProgress * 0.5);
+      ctx.stroke();
+      ctx.restore();
+    }
+    
+    // Generate spark particles on first frames
+    if (progress < 0.1 && particles.length < 12) {
+      for (i = j = 0; j <= 3; i = ++j) {
+        speed = 2 + Math.random() * 4;
+        pAngle = angle + Math.PI + (Math.random() - 0.5) * 1.5;
+        particles.push({
+          x: tx,
+          y: ty,
+          vx: Math.cos(pAngle) * speed,
+          vy: Math.sin(pAngle) * speed,
+          life: 1,
+          size: 2 + Math.random() * 3
+        });
+      }
+    }
+
+    // Update and render particles
+    for (k = 0, len = particles.length; k < len; k++) {
+      particle = particles[k];
+      if (particle.life <= 0) {
+        continue;
+      }
+      particle.x += particle.vx;
+      particle.y += particle.vy;
+      particle.vx *= 0.95;
+      particle.vy *= 0.95;
+      particle.life -= 0.04;
+      ctx.save();
+      ctx.globalAlpha = particle.life;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, particle.size * particle.life, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    
+    // Draw impact flash at target
+    if (progress < 0.15) {
+      flashAlpha = (0.15 - progress) / 0.15;
+      ctx.save();
+      ctx.globalAlpha = flashAlpha * 0.6;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(tx, ty, 50 - progress * 200, 0, Math.PI * 2);
+      ctx.fill();
+      return ctx.restore();
+    }
+  };
+
   render = function() {
-    var i, len, player;
+    var j, k, len, len1, player, slash;
     // Clear canvas
     ctx.fillStyle = '#0f0f23';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    for (i = 0, len = players.length; i < len; i++) {
-      player = players[i];
+    for (j = 0, len = players.length; j < len; j++) {
+      player = players[j];
       ctx.save();
       ctx.translate(player.x, player.y);
       if (player.alive) {
@@ -63,6 +176,17 @@
       }
       ctx.restore();
     }
+// Render and update slash animations
+    for (k = 0, len1 = slashAnimations.length; k < len1; k++) {
+      slash = slashAnimations[k];
+      renderSlash(slash);
+      slash.progress += 0.02;
+    }
+    
+    // Remove completed animations
+    slashAnimations = slashAnimations.filter(function(s) {
+      return s.progress < 1;
+    });
     return requestAnimationFrame(render);
   };
 

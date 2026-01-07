@@ -16,6 +16,16 @@ joystickActive = false
 joystickCenter = { x: 0, y: 0 }
 maxDistance = 45
 
+# Check for game code in URL query params and auto-join
+urlParams = new URLSearchParams(window.location.search)
+codeFromUrl = urlParams.get('code')
+if codeFromUrl
+  gameCodeInput.value = codeFromUrl.toUpperCase()
+  # Auto-join after socket connects
+  socket.on 'connect', ->
+    socket.emit 'type', 'client'
+    socket.emit 'join-game', codeFromUrl.toUpperCase()
+
 # Join game handler
 joinGame = ->
   code = gameCodeInput.value.trim().toUpperCase()

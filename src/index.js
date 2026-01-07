@@ -164,12 +164,24 @@ io.on("connection", (socket) => {
     // Client shoot button
     socket.on('shoot', (isPressed) => {
         if (!isPressed) return;
+        const attacker = clients.get(socket.id);
+        if (!attacker || !attacker.alive) return;
+
         const targetId = findNearestTarget(socket.id);
         if (targetId) {
             const target = clients.get(targetId);
             if (target) {
                 target.alive = false;
                 target.socket.emit('you-died');
+                // Emit kill animation to server display
+                if (serverrr) {
+                    serverrr.emit('kill-animation', {
+                        attackerX: attacker.x,
+                        attackerY: attacker.y,
+                        targetX: target.x,
+                        targetY: target.y
+                    });
+                }
             }
         }
     });
