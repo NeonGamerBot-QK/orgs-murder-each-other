@@ -4,8 +4,8 @@ const express = require('express')
 const app = express()
 const server = require('http').createServer(app)
 const helmet = require('helmet')
-const SOCKETIO = require('socket.io-server')
-const io = new SOCKETIO.App(server)
+const SOCKETIO = require('socket.io').Server
+const io = new SOCKETIO(server)
 app.use(helmet({
     // i hate csp sm
     contentSecurityPolicy: false,
@@ -13,11 +13,13 @@ app.use(helmet({
         origin: "*"
     }
 }))
+app.use(express.static(__dirname + "/public"))
 app.set('view engine', 'ejs')
 app.set('views', __dirname + '/views')
 app.get('/', (req, res) => {
     res.render('index')
 })
+
 
 io.on('connection', socket => {
     console.log(`Meow`)
