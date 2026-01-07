@@ -39,6 +39,16 @@ socket.on 'join-success', ->
 socket.on 'join-error', (msg) ->
   errorMsg.textContent = msg
 
+# Handle death event from server
+socket.on 'you-died', ->
+  document.body.style.background = '#2a0a0a'
+  controllerScreen.innerHTML = '''
+    <div style="text-align: center; width: 100%;">
+      <h1 style="font-size: 3rem; color: #e94560;">YOU DIED</h1>
+      <p style="color: #888; margin-top: 1rem;">Better luck next time...</p>
+    </div>
+  '''
+
 # Calculates joystick position and emits movement data
 updateJoystick = (clientX, clientY) ->
   rect = joystickContainer.getBoundingClientRect()

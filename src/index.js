@@ -16,7 +16,77 @@ app.use(
         },
     }),
 );
-const clients = []
+const clients = new Map(); // Map<socketId, { socket, x, y, velocity: {x, y}, alive }>
+const PLAYER_SPEED = 5;
+const KILL_RADIUS = 100;
+const CANVAS_WIDTH = 1200;
+const CANVAS_HEIGHT = 800;
+
+/**
+ * Generates a random spawn position within the canvas bounds.
+ * @returns {{ x: number, y: number }} The spawn coordinates.
+ */
+function getRandomSpawn() {
+    return {
+        x: Math.random() * (CANVAS_WIDTH - 100) + 50,
+        y: Math.random() * (CANVAS_HEIGHT - 100) + 50
+    };
+}
+
+/**
+ * Finds the nearest alive player within kill radius.
+ * @param {string} attackerId - The socket ID of the attacking player.
+ * @returns {string|null} The socket ID of the nearest target, or null if none in range.
+ */
+function findNearestTarget(attackerId) {
+    const attacker = clients.get(attackerId);
+    if (!attacker || !attacker.alive) return null;
+
+    let nearestId = null;
+    let nearestDist = KILL_RADIUS;
+
+    for (const [id, player] of clients) {
+        if (id === attackerId || !player.alive) continue;
+        const dx = player.x - attacker.x;
+        const dy = player.y - attacker.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < nearestDist) {
+            nearestDist = dist;
+            nearestId = id;
+        }
+    }
+    return nearestId;
+}
+
+/**
+ * Sends the current game state to the server display.
+ */
+function broadcastGameState() {
+    if (!serverrr) return;
+    const players = [];
+    for (const [id, player] of clients) {
+        players.push({
+            id,
+            x: player.x,
+            y: player.y,
+            alive: player.alive
+        });
+    }
+    serverrr.emit('game-state', { players });
+}
+
+// Game loop: updates player positions and broadcasts state
+setInterval(() => {
+    for (const [id, player] of clients) {
+        if (!player.alive) continue;
+        player.x += player.velocity.x * PLAYER_SPEED;
+        player.y += player.velocity.y * PLAYER_SPEED;
+        // Clamp to canvas bounds
+        player.x = Math.max(25, Math.min(CANVAS_WIDTH - 25, player.x));
+        player.y = Math.max(25, Math.min(CANVAS_HEIGHT - 25, player.y));
+    }
+    broadcastGameState();
+}, 1000 / 60); // 60 FPS
 app.use(express.static(__dirname + "/public"));
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
@@ -63,39 +133,52 @@ io.on("connection", (socket) => {
     // Client joins game with code
     socket.on('join-game', (code) => {
         if (type !== "client") return;
-        if (serverrr) {
-            serverrr.people++;
-            if (serverrr.gameCode == code) {
-                socket.emit('join-success')
-            } else {
-                socket.emit('join-error', "Bad code")
-            }
-        } else {
-            socket.emit("join-error", "So uh there is no game")
+        if (!serverrr) {
+            socket.emit("join-error", "No game is running");
+            return;
         }
-
-        // TODO: validate code matches serverrr.gameCode
-        // TODO: add socket to clients array
-        // TODO: emit 'join-success' or 'join-error'
+        if (serverrr.gameCode !== code) {
+            socket.emit('join-error', "Invalid game code");
+            return;
+        }
+        // Add player to clients map with random spawn
+        const spawn = getRandomSpawn();
+        clients.set(socket.id, {
+            socket,
+            x: spawn.x,
+            y: spawn.y,
+            velocity: { x: 0, y: 0 },
+            alive: true
+        });
+        socket.emit('join-success');
     });
 
     // Client joystick movement
     socket.on('joystick', (data) => {
-        // data: { x: -1 to 1, y: -1 to 1 }
-        // TODO: forward to server display or update player state
+        const player = clients.get(socket.id);
+        if (!player || !player.alive) return;
+        player.velocity.x = data.x || 0;
+        player.velocity.y = data.y || 0;
     });
 
     // Client shoot button
     socket.on('shoot', (isPressed) => {
-        // isPressed: true when pressed, false when released
-        // TODO: handle shooting logic
+        if (!isPressed) return;
+        const targetId = findNearestTarget(socket.id);
+        if (targetId) {
+            const target = clients.get(targetId);
+            if (target) {
+                target.alive = false;
+                target.socket.emit('you-died');
+            }
+        }
     });
 
     socket.on('disconnect', () => {
-        if (type == "server") {
+        if (type === "server") {
             serverrr = null;
         } else {
-            clients
+            clients.delete(socket.id);
         }
     })
 });
