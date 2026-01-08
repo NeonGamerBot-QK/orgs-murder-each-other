@@ -130,24 +130,34 @@ app.get("/random-image", (req, res) => {
   const randomOrg = GITHUB_ORGS[Math.floor(Math.random() * GITHUB_ORGS.length)];
   const avatarUrl = `https://github.com/${randomOrg}.png?size=100`;
 
-  https.get(avatarUrl, (response) => {
-    // GitHub redirects to the actual avatar URL
-    if (response.statusCode === 302 || response.statusCode === 301) {
-      https.get(response.headers.location, (imgResponse) => {
-        res.set("Content-Type", imgResponse.headers["content-type"] || "image/png");
-        imgResponse.pipe(res);
-      }).on("error", (err) => {
-        console.error("Error fetching avatar:", err);
-        res.status(500).send("Failed to fetch avatar");
-      });
-    } else {
-      res.set("Content-Type", response.headers["content-type"] || "image/png");
-      response.pipe(res);
-    }
-  }).on("error", (err) => {
-    console.error("Error fetching avatar:", err);
-    res.status(500).send("Failed to fetch avatar");
-  });
+  https
+    .get(avatarUrl, (response) => {
+      // GitHub redirects to the actual avatar URL
+      if (response.statusCode === 302 || response.statusCode === 301) {
+        https
+          .get(response.headers.location, (imgResponse) => {
+            res.set(
+              "Content-Type",
+              imgResponse.headers["content-type"] || "image/png",
+            );
+            imgResponse.pipe(res);
+          })
+          .on("error", (err) => {
+            console.error("Error fetching avatar:", err);
+            res.status(500).send("Failed to fetch avatar");
+          });
+      } else {
+        res.set(
+          "Content-Type",
+          response.headers["content-type"] || "image/png",
+        );
+        response.pipe(res);
+      }
+    })
+    .on("error", (err) => {
+      console.error("Error fetching avatar:", err);
+      res.status(500).send("Failed to fetch avatar");
+    });
 });
 
 app.get("/game-qr", (req, res) => {
