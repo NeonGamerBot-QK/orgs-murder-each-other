@@ -8,7 +8,7 @@ canvas.height = 800
 
 # Load player sprite
 playerImage = new Image()
-playerImage.src = 'https://saahild.com/oneko.gif'
+playerImage.src = '/random-image'
 
 # Game state from server
 players = []

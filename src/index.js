@@ -5,6 +5,31 @@ const app = express();
 const server = require("http").createServer(app);
 const helmet = require("helmet");
 const QRCode = require("qrcode");
+const https = require("https");
+
+// List of GitHub org names to pick random avatars from
+const GITHUB_ORGS = [
+  "hackclub",
+  "microsoft",
+  "google",
+  "facebook",
+  "github",
+  "vercel",
+  "nodejs",
+  "vuejs",
+  "reactjs",
+  "angular",
+  "sveltejs",
+  "golang",
+  "rust-lang",
+  "python",
+  "apple",
+  "amazon",
+  "netflix",
+  "spotify",
+  "discord",
+  "twitch",
+];
 const SOCKETIO = require("socket.io").Server;
 const io = new SOCKETIO(server);
 app.use(
@@ -97,6 +122,34 @@ app.get("/game", (req, res) => {
   res.render("client");
 });
 let serverrr = "";
+/**
+ * Returns a random GitHub organization avatar image.
+ * Proxies the image to avoid CORS issues.
+ */
+app.get("/random-image", (req, res) => {
+  const randomOrg = GITHUB_ORGS[Math.floor(Math.random() * GITHUB_ORGS.length)];
+  const avatarUrl = `https://github.com/${randomOrg}.png?size=100`;
+
+  https.get(avatarUrl, (response) => {
+    // GitHub redirects to the actual avatar URL
+    if (response.statusCode === 302 || response.statusCode === 301) {
+      https.get(response.headers.location, (imgResponse) => {
+        res.set("Content-Type", imgResponse.headers["content-type"] || "image/png");
+        imgResponse.pipe(res);
+      }).on("error", (err) => {
+        console.error("Error fetching avatar:", err);
+        res.status(500).send("Failed to fetch avatar");
+      });
+    } else {
+      res.set("Content-Type", response.headers["content-type"] || "image/png");
+      response.pipe(res);
+    }
+  }).on("error", (err) => {
+    console.error("Error fetching avatar:", err);
+    res.status(500).send("Failed to fetch avatar");
+  });
+});
+
 app.get("/game-qr", (req, res) => {
   const code = req.query.code.slice(0, 6);
   const url = `http://${process.env.BASE_URL || "localhost:3000"}/game?code=${code}`;
